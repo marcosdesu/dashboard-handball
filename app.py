@@ -91,13 +91,11 @@ with tab1:
         max_asym = max(abs(asym_at), abs(asym_fz))
         limite_x = max(20.0, float(np.ceil((max_asym + 5.0) / 5.0) * 5.0))
         
-        # --- GENERADOR INTUITIVO DE ETIQUETAS ---
         etiquetas_humanas = []
         for v in [asym_at, asym_fz]:
             if v < 0: etiquetas_humanas.append(f"◄ Lado IZQ ({abs(v):.1f}%)")
             elif v > 0: etiquetas_humanas.append(f"Lado DER ({v:.1f}%) ►")
             else: etiquetas_humanas.append("Simétrico (0%)")
-        # ----------------------------------------
 
         fig_asym = go.Figure(go.Bar(
             y=['Asimetría Aterrizaje (1 Pierna)', 'Asimetría Sentadilla (Fuerza)'],
@@ -114,8 +112,13 @@ with tab1:
             ), 
             height=350, template="plotly_white"
         )
+        
+        # --- COLUMNA VERTEBRAL AÑADIDA ---
+        fig_asym.add_vline(x=0, line_width=2, line_color="#1A1A1A") # El origen exacto
         fig_asym.add_vline(x=-10, line_dash="dash", line_color="orange")
         fig_asym.add_vline(x=10, line_dash="dash", line_color="orange")
+        # ---------------------------------
+        
         st.plotly_chart(fig_asym, use_container_width=True)
 
     with col_der:
