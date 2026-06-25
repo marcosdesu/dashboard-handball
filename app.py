@@ -140,4 +140,5 @@ with tab2:
             rb = int(190 - (160 * norm))
             return f'background-color: rgb({rb}, {int(240-(90*norm))}, {rb}); color: {"white" if norm > 0.55 else "black"};'
 
-    st.dataframe(df_heat.style.applymap(semaforo_web).format("{:.1f}%", na_rep="-"), use_container_width=True, height=550)
+    # CÓDIGO CORREGIDO:
+    st.dataframe(df_heat.style.map(semaforo_web).format("{:.1f}%", na_rep="-"), use_container_width=True, height=550)
