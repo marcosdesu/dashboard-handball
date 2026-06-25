@@ -32,7 +32,7 @@ def limpiar_duplicados_por_hora(df):
     df = df.sort_values(by=['Name', 'Time_Parsed'], ascending=[True, False])
     return df.drop_duplicates(subset=['Name'], keep='first').drop(columns=['Time_Parsed'])
 
-# 2. CARGA DE DATOS (Con memoria caché para que la app sea ultrarrápida)
+# 2. CARGA DE DATOS
 @st.cache_data
 def load_data():
     df_squat = limpiar_duplicados_por_hora(pd.read_csv("Squat assessment-05_19_2026.csv"))
@@ -48,7 +48,9 @@ def load_data():
     df_ab_c = df_ab[['Name', 'Jump Height (Flight Time) [cm] ']].rename(columns={'Jump Height (Flight Time) [cm] ': 'ABA_JumpHeight_cm'})
     df_dj_c = df_dj[['Name', 'RSI (Flight Time/Contact Time) ']].rename(columns={'RSI (Flight Time/Contact Time) ': 'DJ_RSI'})
     df_sldj_c = df_sldj[['Name', 'Peak Landing Force / BW  (Asym)(%)']].rename(columns={'Peak Landing Force / BW  (Asym)(%)': 'SLDJ_Landing_Asym'})
-    df_inb_c = df_inbody[['Name', '6. Weight', '24. SMM (Skeletal Muscle Mass)', '30. PBF (Percent Body Fat)']].rename(columns={'6. Weight': 'Weight_kg', '24. SMM (Skeletal Muscle Mass)': 'Muscle_Mass_kg', '30. PBF (Percent Body Fat)': 'BodyFat_%'})
+    
+    # --- AQUÍ SE INTEGRÓ LA ESTATURA ('2. Height') ---
+    df_inb_c = df_inbody[['Name', '2. Height', '6. Weight', '24. SMM (Skeletal Muscle Mass)', '30. PBF (Percent Body Fat)']].rename(columns={'2. Height': 'Height_cm', '6. Weight': 'Weight_kg', '24. SMM (Skeletal Muscle Mass)': 'Muscle_Mass_kg', '30. PBF (Percent Body Fat)': 'BodyFat_%'})
 
     dfs = [df_sq_c, df_ab_c, df_dj_c, df_sldj_c, df_inb_c]
     df_master = dfs[0]
@@ -67,18 +69,19 @@ st.subheader("Sistema de Monitoreo Físico y Prevención de Lesiones")
 
 tab1, tab2 = st.tabs(["📊 Diagnóstico Individual", "🔥 Mapa de Calor Colectivo"])
 
-# PESTAÑA 1: INDIVIDUAL
 with tab1:
     lista_jugadoras = sorted(df_master['Name'].dropna().unique())
     jugadora_sel = st.selectbox("Selecciona una jugadora:", lista_jugadoras)
     
     p_data = df_master[df_master['Name'] == jugadora_sel].iloc[0]
     
-    # Tarjetas de resumen InBody
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Peso Corporal", f"{p_data['Weight_kg']:.1f} kg")
-    c2.metric("Masa Muscular (SMM)", f"{p_data['Muscle_Mass_kg']:.1f} kg")
-    c3.metric("Grasa Corporal", f"{p_data['BodyFat_%']:.1f}%")
+    # --- MOSTRADOR EXPANDIDO A 4 TARJETAS ---
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Estatura", f"{p_data['Height_cm']:.1f} cm")
+    c2.metric("Peso Corporal", f"{p_data['Weight_kg']:.1f} kg")
+    c3.metric("Masa Muscular (SMM)", f"{p_data['Muscle_Mass_kg']:.1f} kg")
+    c4.metric("Grasa Corporal", f"{p_data['BodyFat_%']:.1f}%")
+    # ----------------------------------------
     
     if pd.isna(p_data['ABA_JumpHeight_cm']):
         st.warning("⚠️ Esta jugadora no realizó las pruebas de salto en esta sesión.")
@@ -89,13 +92,16 @@ with tab1:
         asym_at = 0 if pd.isna(p_data['SLDJ_Landing_Asym_Num']) else p_data['SLDJ_Landing_Asym_Num']
         asym_fz = 0 if pd.isna(p_data['SQ_Asym_Num']) else p_data['SQ_Asym_Num']
         
+        max_asym = max(abs(asym_at), abs(asym_fz))
+        limite_x = max(20.0, float(np.ceil((max_asym + 5.0) / 5.0) * 5.0))
+        
         fig_asym = go.Figure(go.Bar(
             y=['Asimetría Aterrizaje (1 Pierna)', 'Asimetría Sentadilla (Fuerza)'],
             x=[asym_at, asym_fz], orientation='h',
             marker_color=['red' if abs(x) > 10 else '#2E8B57' for x in [asym_at, asym_fz]],
             text=[f"{x}%" for x in [asym_at, asym_fz]], textposition='auto'
         ))
-        fig_asym.update_layout(title="Riesgo Biomecánico de LCA (% Asimetría)", xaxis=dict(range=[-20, 20]), height=350, template="plotly_white")
+        fig_asym.update_layout(title="Riesgo Biomecánico de LCA (% Asimetría)", xaxis=dict(range=[-limite_x, limite_x]), height=350, template="plotly_white")
         fig_asym.add_vline(x=-10, line_dash="dash", line_color="orange")
         fig_asym.add_vline(x=10, line_dash="dash", line_color="orange")
         st.plotly_chart(fig_asym, use_container_width=True)
@@ -115,7 +121,6 @@ with tab1:
         fig_rad.update_layout(title="Rendimiento vs Media del Equipo (100%)", polar=dict(radialaxis=dict(visible=True, range=[suelo, techo])), height=400, template="plotly_white")
         st.plotly_chart(fig_rad, use_container_width=True)
 
-# PESTAÑA 2: MAPA COLECTIVO
 with tab2:
     st.markdown("### Matriz Táctica de Plantilla")
     st.caption("Valores expresados en % respecto a la media del equipo. Rojo: <80% | Amarillo: 80-99% | Verde: 100%+")
@@ -140,5 +145,4 @@ with tab2:
             rb = int(190 - (160 * norm))
             return f'background-color: rgb({rb}, {int(240-(90*norm))}, {rb}); color: {"white" if norm > 0.55 else "black"};'
 
-    # CÓDIGO CORREGIDO:
     st.dataframe(df_heat.style.map(semaforo_web).format("{:.1f}%", na_rep="-"), use_container_width=True, height=550)
