@@ -48,8 +48,6 @@ def load_data():
     df_ab_c = df_ab[['Name', 'Jump Height (Flight Time) [cm] ']].rename(columns={'Jump Height (Flight Time) [cm] ': 'ABA_JumpHeight_cm'})
     df_dj_c = df_dj[['Name', 'RSI (Flight Time/Contact Time) ']].rename(columns={'RSI (Flight Time/Contact Time) ': 'DJ_RSI'})
     df_sldj_c = df_sldj[['Name', 'Peak Landing Force / BW  (Asym)(%)']].rename(columns={'Peak Landing Force / BW  (Asym)(%)': 'SLDJ_Landing_Asym'})
-    
-    # --- AQUÍ SE INTEGRÓ LA ESTATURA ('2. Height') ---
     df_inb_c = df_inbody[['Name', '2. Height', '6. Weight', '24. SMM (Skeletal Muscle Mass)', '30. PBF (Percent Body Fat)']].rename(columns={'2. Height': 'Height_cm', '6. Weight': 'Weight_kg', '24. SMM (Skeletal Muscle Mass)': 'Muscle_Mass_kg', '30. PBF (Percent Body Fat)': 'BodyFat_%'})
 
     dfs = [df_sq_c, df_ab_c, df_dj_c, df_sldj_c, df_inb_c]
@@ -75,13 +73,11 @@ with tab1:
     
     p_data = df_master[df_master['Name'] == jugadora_sel].iloc[0]
     
-    # --- MOSTRADOR EXPANDIDO A 4 TARJETAS ---
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Estatura", f"{p_data['Height_cm']:.1f} cm")
     c2.metric("Peso Corporal", f"{p_data['Weight_kg']:.1f} kg")
     c3.metric("Masa Muscular (SMM)", f"{p_data['Muscle_Mass_kg']:.1f} kg")
     c4.metric("Grasa Corporal", f"{p_data['BodyFat_%']:.1f}%")
-    # ----------------------------------------
     
     if pd.isna(p_data['ABA_JumpHeight_cm']):
         st.warning("⚠️ Esta jugadora no realizó las pruebas de salto en esta sesión.")
@@ -95,13 +91,29 @@ with tab1:
         max_asym = max(abs(asym_at), abs(asym_fz))
         limite_x = max(20.0, float(np.ceil((max_asym + 5.0) / 5.0) * 5.0))
         
+        # --- GENERADOR INTUITIVO DE ETIQUETAS ---
+        etiquetas_humanas = []
+        for v in [asym_at, asym_fz]:
+            if v < 0: etiquetas_humanas.append(f"◄ Lado IZQ ({abs(v):.1f}%)")
+            elif v > 0: etiquetas_humanas.append(f"Lado DER ({v:.1f}%) ►")
+            else: etiquetas_humanas.append("Simétrico (0%)")
+        # ----------------------------------------
+
         fig_asym = go.Figure(go.Bar(
             y=['Asimetría Aterrizaje (1 Pierna)', 'Asimetría Sentadilla (Fuerza)'],
             x=[asym_at, asym_fz], orientation='h',
             marker_color=['red' if abs(x) > 10 else '#2E8B57' for x in [asym_at, asym_fz]],
-            text=[f"{x}%" for x in [asym_at, asym_fz]], textposition='auto'
+            text=etiquetas_humanas, textposition='auto'
         ))
-        fig_asym.update_layout(title="Riesgo Biomecánico de LCA (% Asimetría)", xaxis=dict(range=[-limite_x, limite_x]), height=350, template="plotly_white")
+        
+        fig_asym.update_layout(
+            title="Riesgo Biomecánico de LCA (% Asimetría)", 
+            xaxis=dict(
+                range=[-limite_x, limite_x],
+                title="◄  Lado IZQUIERDO   —   0% (Centro)   —   Lado DERECHO  ►"
+            ), 
+            height=350, template="plotly_white"
+        )
         fig_asym.add_vline(x=-10, line_dash="dash", line_color="orange")
         fig_asym.add_vline(x=10, line_dash="dash", line_color="orange")
         st.plotly_chart(fig_asym, use_container_width=True)
